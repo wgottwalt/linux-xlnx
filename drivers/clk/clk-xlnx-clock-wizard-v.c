@@ -14,6 +14,7 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 #include <linux/of.h>
+#include <linux/math64.h>
 #include <linux/module.h>
 #include <linux/err.h>
 #include <linux/iopoll.h>
@@ -76,8 +77,8 @@
 #define WZRD_M_MAX			432
 #define WZRD_D_MIN			1
 #define WZRD_D_MAX			123
-#define WZRD_VCO_MIN			2160000000
-#define WZRD_VCO_MAX			4320000000
+#define WZRD_VCO_MIN			2160000000LL
+#define WZRD_VCO_MAX			4320000000LL
 #define WZRD_O_MIN			2
 #define WZRD_O_MAX			511
 
@@ -221,17 +222,18 @@ static int clk_wzrd_get_divisors(struct clk_hw *hw, unsigned long rate,
 				 unsigned long parent_rate)
 {
 	struct clk_wzrd_divider *divider = to_clk_wzrd_divider(hw);
-	u64 vco_freq, freq, diff;
-	u32 m, d, o;
+	s64 tmp_rate = rate;
+	s64 tmp_prate = parent_rate;
+	s64 vco_freq, freq, diff;
+	s32 m, d, o;
 
 	for (m = WZRD_M_MIN; m <= WZRD_M_MAX; m++) {
 		for (d = WZRD_D_MIN; d <= WZRD_D_MAX; d++) {
-			vco_freq = DIV_ROUND_CLOSEST((parent_rate * m), d);
+			vco_freq = DIV_S64_ROUND_CLOSEST((tmp_prate * m), d);
 			if (vco_freq >= WZRD_VCO_MIN && vco_freq <= WZRD_VCO_MAX) {
 				for (o = WZRD_O_MIN; o <= WZRD_O_MAX; o++) {
-					freq = DIV_ROUND_CLOSEST(vco_freq, o);
-					diff = abs(freq - rate);
-
+					freq = DIV_S64_ROUND_CLOSEST(vco_freq, o);
+					diff = abs(freq - tmp_rate);
 					if (diff < WZRD_MIN_ERR) {
 						divider->valuem = m;
 						divider->valued = d;
